@@ -1,83 +1,65 @@
-cabal-version: 1.12
+cabal-version: 2.2
 
 name: todo-hs
 version: 0.1.0.0
 build-type: Simple
-extra-source-files:
-    README.md
+extra-source-files: README.md
 
-library
-  hs-source-dirs:
-      src/lib
-  exposed-modules:
-      Todo
-  other-modules:
-      Paths_todo_hs
+common common
   build-depends:
       base
-    , containers
     , text
     , time
   default-language: Haskell2010
-  ghc-options: -Wall
+  default-extensions:
+      DataKinds
+      DeriveFunctor
+      DerivingVia
+      FlexibleInstances
+      KindSignatures
+      MultiParamTypeClasses
+      OverloadedStrings
+      RecordWildCards
+      TypeApplications
+      TypeFamilies
+      ViewPatterns
+  ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall
 
-executable todo-hs-cli
-  hs-source-dirs:
-      src/cli
-  main-is: Main.hs
-  other-modules:
-      Paths_todo_hs
-  build-depends:
-      base
-    , todo-hs
-  default-language: Haskell2010
-  ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
+library
+  import: common
+  hs-source-dirs: src/lib
+  exposed-modules: Todo
+  other-modules: Todo.Display, Todo.Enum
+  visibility: private
+  build-depends: containers
 
-executable todo-hs-snap
-  hs-source-dirs:
-      src/snap
+executable cli
+  import: common
+  hs-source-dirs: src/cli
   main-is: Main.hs
-  other-modules:
-      Paths_todo_hs
-  build-depends:
-      base
-    , todo-hs
-  default-language: Haskell2010
-  ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
+  build-depends: todo-hs, mtl, random
 
-executable todo-hs-spock
-  hs-source-dirs:
-      src/spock
+executable snap
+  import: common
+  hs-source-dirs: src/snap
   main-is: Main.hs
-  other-modules:
-      Paths_todo_hs
-  build-depends:
-      base
-    , todo-hs
-  default-language: Haskell2010
-  ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
+  build-depends: todo-hs
 
-executable todo-hs-yesod
-  hs-source-dirs:
-      src/yesod
+executable spock
+  import: common
+  hs-source-dirs: src/spock
   main-is: Main.hs
-  other-modules:
-      Paths_todo_hs
-  build-depends:
-      base
-    , todo-hs
-  default-language: Haskell2010
-  ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
+  build-depends: todo-hs
 
-test-suite todo-hs-test
-  hs-source-dirs:
-      src/test
+executable yesod
+  import: common
+  hs-source-dirs: src/yesod
   main-is: Main.hs
-  other-modules:
-      Paths_todo_hs
+  build-depends: todo-hs
+
+test-suite test
+  import: common
+  hs-source-dirs: src/test
+  main-is: Main.hs
   type: exitcode-stdio-1.0
-  build-depends:
-      base
-    , todo-hs
-  default-language: Haskell2010
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends: todo-hs

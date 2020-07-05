@@ -1,13 +1,4 @@
-{-# LANGUAGE
-  DataKinds,
-  DerivingVia,
-  RecordWildCards,
-  OverloadedStrings #-}
-
 module Todo where
-
-import Todo.Display
-import Todo.Enum
 
 import Control.Monad
 import Data.List
@@ -21,6 +12,9 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 
+import Todo.Display
+import Todo.Enum
+
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
 
@@ -28,7 +22,7 @@ someFunc = putStrLn "someFunc"
 ----
 -- Model
 
-newtype TaskId = TaskIt Text
+newtype TaskId = TaskId Text
   deriving (Eq, Ord)
 
 newtype Title = Title Text
@@ -83,6 +77,14 @@ data Message
   | EditorInputPriority (Maybe Priority)
   | EditorClose
 
+initialModel :: Model
+initialModel = Model
+  { tasks = mempty
+  , taskFilter = TaskFilterAll
+  , taskSort = SortPriority
+  , editor = Nothing
+  }
+
 
 ----
 -- Update
@@ -93,6 +95,7 @@ class Monad u => Update u where
 
 update :: Update u => Message -> Model -> u Model
 update msg Model{..} = case msg of
+
   NewTask description -> do
     taskId <- newTaskId
     created <- getTime
@@ -192,9 +195,12 @@ view Model{..} =
     ]
 
   sortTasks = case taskSort of
-    SortCreated -> sortOn $ \(_, Task{..}) -> created
+    SortCreated -> sortOn $
+      \(_, Task{ description = Description{..}, .. }) ->
+        (created, Down priority)
     SortPriority -> sortOn $
-      \(_, Task{ description = Description{..} }) -> Down priority
+      \(_, Task{ description = Description{..}, .. }) ->
+        (Down priority, created)
 
   filterTasks = case taskFilter of
     TaskFilterAll -> id
