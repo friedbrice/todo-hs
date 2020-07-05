@@ -40,10 +40,10 @@ instance Display Int where
 
 instance Display Integer where
   display n =
-    sign n <> grouped n
+    sign <> grouped n
     where
 
-    sign k = if k < 0 then "-" else ""
+    sign = if n < 0 then "-" else ""
 
     grouped =
       Text.pack . reverse . intercalate "," . triples . reverse . show . abs
@@ -55,16 +55,15 @@ instance Display Integer where
 
 -- | Specify a decimal precision to display.
 newtype Precision (n :: Nat) (a :: *) = Precision a
-  deriving (Eq, Ord, Num, Fractional, Real) via a
 
 instance (KnownNat n, Real a) => Display (Precision n a) where
-  display (toRational -> x) =
+  display (Precision x) =
     sign <> whole <> "." <> fraction
     where
 
     sign = if x < 0 then "-" else ""
 
-    (w, f) = properFraction @_ @Integer (abs x)
+    (w, f) = properFraction @_ @Integer (toRational $ abs x)
 
     whole = display w
 
@@ -78,7 +77,6 @@ instance (KnownNat n, Real a) => Display (Precision n a) where
 
 -- | Derive a display instance from a show instance.
 newtype DeriveDisplay (prefix :: k) (a :: *) = DeriveDisplay a
-  deriving Show via a
 
 instance Show a => Display (DeriveDisplay '() a) where
   display (DeriveDisplay x) = Text.pack (show x)

@@ -22,7 +22,6 @@ common common
       RecordWildCards
       TypeApplications
       TypeFamilies
-      ViewPatterns
   ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall
 
 library

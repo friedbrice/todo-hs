@@ -15,9 +15,6 @@ import qualified Data.Text as Text
 import Todo.Display
 import Todo.Enum
 
-someFunc :: IO ()
-someFunc = putStrLn "someFunc"
-
 
 ----
 -- Model
@@ -94,59 +91,52 @@ class Monad u => Update u where
   newTaskId :: u TaskId
 
 update :: Update u => Message -> Model -> u Model
-update msg Model{..} = case msg of
+update msg model@Model{..} = case msg of
 
   NewTask description -> do
     taskId <- newTaskId
     created <- getTime
-    return Model
-      { tasks =
-        Map.alter (const $ Just Task{completed = Nothing, ..}) taskId tasks
-      , ..
-      }
+    return model{ tasks =
+      Map.alter (const $ Just Task{ completed = Nothing, .. }) taskId tasks
+    }
 
   UpdateTask taskId desc ->
-    return Model
-      { tasks =
-        Map.alter (fmap $ \task -> task{description = desc}) taskId tasks
-      , ..
-      }
+    return model{ tasks =
+      Map.alter (fmap $ \task -> task{ description = desc }) taskId tasks
+    }
 
   CompleteTask taskId -> do
     cmpl <- Just <$> getTime
-    return Model
-      { tasks =
-        Map.alter (fmap $ \task -> task{completed = cmpl}) taskId tasks
-      , ..
-      }
+    return model{ tasks =
+      Map.alter (fmap $ \task -> task { completed = cmpl }) taskId tasks
+    }
 
   DeleteTask taskId ->
-    return Model { tasks = Map.alter (const Nothing) taskId tasks, .. }
+    return model{ tasks = Map.alter (const Nothing) taskId tasks }
 
   SetFilter f ->
-    return Model { taskFilter = f, .. }
+    return model{ taskFilter = f }
 
   EditorOpen taskId ->
-    return Model
-      { editor = Just $ case (`Map.lookup` tasks) =<< taskId of
+    return model{ editor =
+      Just $ case (`Map.lookup` tasks) =<< taskId of
         Nothing ->
           ("", Nothing, Nothing)
-        Just Task { description = Description{ title = Title txt, .. } } ->
+        Just Task{ description = Description{ title = Title txt, .. } } ->
           (txt, Just priority, taskId)
-      , ..
-      }
+    }
 
   EditorInputText input ->
-    return Model { editor = fmap (\(_, x, y) -> (input, x, y)) editor, .. }
+    return model{ editor = fmap (\(_, x, y) -> (input, x, y)) editor }
 
   EditorInputPriority input ->
-    return Model { editor = fmap (\(x, _, y) -> (x, input, y)) editor, .. }
+    return model{ editor = fmap (\(x, _, y) -> (x, input, y)) editor }
 
   EditorClose ->
-    return Model { editor = Nothing, .. }
+    return model{ editor = Nothing }
 
   SetSort s ->
-    return Model { taskSort = s, .. }
+    return model{ taskSort = s }
 
 
 ----
@@ -177,11 +167,11 @@ view Model{..} =
 
   makeTable = table
     [ ( section "Title" Nothing
-      , \(taskId, Task { description = Description{..} }) ->
+      , \(taskId, Task{ description = Description{..} }) ->
         text (display title) (Just . EditorOpen $ Just taskId)
       )
     , ( section "Priority" (Just $ SetSort SortPriority)
-      , \(taskId, Task { description = Description{..} }) ->
+      , \(taskId, Task{ description = Description{..} }) ->
         text (display priority) (Just . EditorOpen $ Just taskId)
       )
     , ( section "Created" (Just $ SetSort SortCreated)

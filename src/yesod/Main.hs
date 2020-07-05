@@ -1,4 +1,2 @@
-import Todo
-
 main :: IO ()
-main = someFunc
+main = return ()
