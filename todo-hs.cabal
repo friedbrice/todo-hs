@@ -1,11 +1,10 @@
 cabal-version: 1.12
 
-name:           todo-hs
-version:        0.1.0.0
-build-type:     Simple
+name: todo-hs
+version: 0.1.0.0
+build-type: Simple
 extra-source-files:
     README.md
-
 
 library
   hs-source-dirs:
@@ -16,9 +15,11 @@ library
       Paths_todo_hs
   build-depends:
       base
+    , containers
+    , text
+    , time
   default-language: Haskell2010
-  ghc-options: -Wall -Werror
-
+  ghc-options: -Wall
 
 executable todo-hs-cli
   hs-source-dirs:
@@ -32,7 +33,6 @@ executable todo-hs-cli
   default-language: Haskell2010
   ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
 
-
 executable todo-hs-snap
   hs-source-dirs:
       src/snap
@@ -44,7 +44,6 @@ executable todo-hs-snap
     , todo-hs
   default-language: Haskell2010
   ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
-
 
 executable todo-hs-spock
   hs-source-dirs:
@@ -58,7 +57,6 @@ executable todo-hs-spock
   default-language: Haskell2010
   ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
 
-
 executable todo-hs-yesod
   hs-source-dirs:
       src/yesod
@@ -70,7 +68,6 @@ executable todo-hs-yesod
     , todo-hs
   default-language: Haskell2010
   ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
-
 
 test-suite todo-hs-test
   hs-source-dirs:
