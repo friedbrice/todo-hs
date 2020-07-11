@@ -62,6 +62,18 @@ data Model = Model
   , editor :: Maybe (Text, Maybe Priority, Maybe TaskId)
   }
 
+initialModel :: Model
+initialModel = Model
+  { tasks = mempty
+  , taskFilter = TaskFilterAll
+  , taskSort = SortPriority
+  , editor = Nothing
+  }
+
+
+----
+-- Update
+
 data Message
   = NewTask Description
   | UpdateTask TaskId Description
@@ -74,18 +86,6 @@ data Message
   | EditorInputText Text
   | EditorInputPriority (Maybe Priority)
   | EditorClose
-
-initialModel :: Model
-initialModel = Model
-  { tasks = mempty
-  , taskFilter = TaskFilterAll
-  , taskSort = SortPriority
-  , editor = Nothing
-  }
-
-
-----
--- Update
 
 class Monad u => Update u where
   getTime :: u UTCTime
