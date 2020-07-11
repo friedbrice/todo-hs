@@ -170,16 +170,16 @@ view Model{..} =
   tasksTable = makeTable . sortTasks . filterTasks $ Map.toList tasks
 
   makeTable = table
-    [ ( section "Title" Nothing
-      , \(taskId, Task{ description = Description{..} }) ->
-        text (display title) (Just . EditorOpen $ Just taskId)
-      )
-    , ( section "Priority" (Just $ SetSort SortPriority)
+    [ ( section "Priority" (Just $ SetSort SortPriority)
       , \(taskId, Task{ description = Description{..} }) ->
         text (display priority) (Just . EditorOpen $ Just taskId)
       )
+    , ( section "Title" Nothing
+      , \(taskId, Task{ description = Description{..} }) ->
+        text (display title) (Just . EditorOpen $ Just taskId)
+      )
     , ( section "Created" (Just $ SetSort SortCreated)
-      , \(_, Task{..}) -> time created Nothing
+      , \(taskId, Task{..}) -> time created Nothing
       )
     , ( section "Completed" Nothing
       , \(taskId, Task{..}) -> case completed of
