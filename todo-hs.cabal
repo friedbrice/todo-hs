@@ -6,10 +6,7 @@ build-type: Simple
 extra-source-files: README.md
 
 common common
-  build-depends:
-      base
-    , text
-    , time
+  build-depends: base, text, time
   default-language: Haskell2010
   default-extensions:
       DataKinds
