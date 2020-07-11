@@ -69,6 +69,7 @@ data Message
   | DeleteTask TaskId
   | SetFilter TaskFilter
   | SetSort TaskSort
+  | ClearCompleted
   | EditorOpen (Maybe TaskId)
   | EditorInputText Text
   | EditorInputPriority (Maybe Priority)
@@ -137,6 +138,9 @@ update msg model@Model{..} = case msg of
 
   SetSort s ->
     return model{ taskSort = s }
+
+  ClearCompleted ->
+    return model{ tasks = Map.filter (\Task{..} -> null completed) tasks }
 
 
 ----
@@ -210,6 +214,8 @@ view Model{..} =
       n -> text (display n <> " items left") Nothing
     , hfill
     , fmap SetFilter $ switch ((`text` Nothing) . display) enum $ taskFilter
+    , hfill
+    , button . text "Clear completed" $ Just ClearCompleted
     ]
 
   editorModal = (`foldMap` editor) $ \(txt, pri, taskId) ->
