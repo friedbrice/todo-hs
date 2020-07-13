@@ -1,60 +1,99 @@
-import Prelude hiding (putStrLn)
-
-import Control.Monad.Reader
-import Control.Monad.State
-import Data.IORef
-
-import Data.Text (pack)
-import Data.Time.Clock (getCurrentTime)
-import System.Random (randomIO)
-
 import Todo
+
+import Prelude hiding (getLine, lookup, putStr)
+
+import Data.Foldable (fold, foldl')
+import Data.List (intercalate)
+import Data.Map (Map, alter, lookup)
+import Data.Maybe (fromMaybe)
+import Data.Text (Text, pack, unpack)
+import Data.Text.IO (getLine, putStr)
+import Data.Time (getCurrentTime, getCurrentTimeZone, utcToLocalTime)
+import Data.UUID (UUID)
+import System.Random (randomIO)
+import Text.Read (readMaybe)
 
 main :: IO ()
 main = makeCliApp update view initialModel
 
-makeCliApp :: (a -> c -> App c c) -> (c -> Cli c a) -> c -> IO ()
-makeCliApp u v m =
-  newIORef (Ctx m) >>= runApp mainLoop
-  where
-  mainLoop = do
-    Ctx model <- get
-    runCli (v model) $ \msg -> do
-      model' <- u msg model
-      put $ Ctx model'
-      mainLoop
+makeCliApp :: (b -> a -> CliApp a) -> (a -> Cli b) -> a -> IO ()
+makeCliApp u v m = do
+  let (registry, draw) = render (v m)
+  draw
+  b <- readRegistry registry
+  newModel <- runCliApp $ u b m
+  makeCliApp u v newModel
 
-data Ctx c = Ctx c
+newtype CliApp a = CliApp { runCliApp :: IO a }
+  deriving (Functor, Applicative, Monad) via IO
 
-newtype App c a = App { runApp :: IORef (Ctx c) -> IO a }
-  deriving (Functor, Applicative, Monad, MonadIO) via ReaderT (IORef (Ctx c)) IO
+instance Update CliApp where
+  getTime = CliApp $ getCurrentTime
+  newTaskId = CliApp $ TaskId . pack . show <$> randomIO @UUID
 
-newtype Cli c a = Cli { runCli :: (a -> App c ()) -> App c () }
+newtype Cli b = Cli [(Int -> IO (), Maybe (IO b))]
   deriving Functor
+  deriving (Semigroup, Monoid) via [(Int -> IO (), Maybe (IO b))]
 
-instance MonadState (Ctx c) (App c) where
-  state f = App $ \ref -> do
-    ctx <- readIORef ref
-    let (a, ctx') = f ctx
-    writeIORef ref ctx'
-    return a
+render :: Cli b -> (Map Int (IO b), IO ())
+render (Cli cs) = (registry, draw)
+  where
+  (_, registry, draw) = foldl' step (0 :: Int, mempty, mempty) cs
 
-instance Update (App c) where
-  getTime = liftIO getCurrentTime
-  newTaskId = fmap (TaskId . pack . show @Int) (liftIO randomIO)
+  step (n, regAcc, drawAcc) (drawNext, msgNext) =
+    ( maybe n (const $ succ n) msgNext
+    , alter (const msgNext) n regAcc
+    , drawAcc *> drawNext n
+    )
 
-instance View (Cli c) where
-  heading = undefined
-  section = undefined
-  text = undefined
-  time = undefined
-  textbox = undefined
-  hfill = undefined
-  vfill = undefined
+readRegistry :: Map Int (IO b) -> IO b
+readRegistry registry = do
+  n <- readMaybe . unpack <$> getLine
+  fromMaybe (readRegistry registry) $ (`lookup` registry) =<< n
+
+static :: IO () -> Cli b
+static io = Cli [(const io, Nothing)]
+
+active :: IO b -> (Int -> IO ()) -> Cli b
+active b io = Cli [(io, Just b)]
+
+btn :: Text -> Int -> Text
+btn txt n = "[ "<> txt <> " | " <> (pack $ show n) <> " ]"
+
+instance View Cli where
+  heading = text . ("# " <>)
+
+  section = text . ("## " <>)
+
+  text txt Nothing = static $ putStr txt
+  text txt (Just b) = active (pure b) $ putStr . btn txt
+
+  time utct mMsg =
+    let
+      timeText = do
+        tz <- getCurrentTimeZone
+        return . pack . show $ utcToLocalTime tz utct
+    in case mMsg of
+      Nothing -> static $ putStr =<< timeText
+      Just b -> active (pure b) $ \n -> do
+        putStr =<< btn <$> timeText <*> pure n
+
+  textbox txt = active getLine $ putStr . btn txt
+
+  hfill = static $ putStr "\t"
+
+  vfill = static $ putStr "\n\n"
+
   select = undefined
+
   switch = undefined
-  row = undefined
-  col = undefined
-  button = undefined
-  modalWindow = undefined
+
+  row = fold . intercalate [static (putStr " | ")] . fmap pure
+
+  col = fold . intercalate [static (putStr "\n")] . fmap pure
+
+  button = id
+
+  modalWindow = id
+
   table = undefined
