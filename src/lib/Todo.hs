@@ -48,7 +48,7 @@ data TaskFilter
   = TaskFilterAll
   | TaskFilterActive
   | TaskFilterCompleted
-  deriving (Bounded, Enum, Show)
+  deriving (Bounded, Enum, Eq, Show)
   deriving Display via DeriveDisplay TaskFilter TaskFilter
 
 data TaskSort
@@ -154,8 +154,8 @@ class Functor v => View v where
   textbox :: Text -> v Text
   hfill :: v a
   vfill :: v a
-  select :: (a -> v a) -> [a] -> a -> v a
-  switch :: (a -> v a) -> [a] -> a -> v a
+  select :: (a -> v a) -> ([a], a, [a]) -> v a
+  switch :: (a -> v a) -> ([a], a, [a]) -> v a
   row :: [v a] -> v a
   col :: [v a] -> v a
   button :: v a -> v a
@@ -179,7 +179,7 @@ view Model{..} =
         text (display title) (Just . EditorOpen $ Just taskId)
       )
     , ( section "Created" (Just $ SetSort SortCreated)
-      , \(taskId, Task{..}) -> time created Nothing
+      , \(_, Task{..}) -> time created Nothing
       )
     , ( section "Completed" Nothing
       , \(taskId, Task{..}) -> case completed of
@@ -213,7 +213,9 @@ view Model{..} =
       1 -> text "1 item left" Nothing
       n -> text (display n <> " items left") Nothing
     , hfill
-    , fmap SetFilter $ switch ((`text` Nothing) . display) enum $ taskFilter
+    , fmap SetFilter
+      . switch ((`text` Nothing) . display)
+      $ enumPosition taskFilter
     , hfill
     , button . text "Clear completed" $ Just ClearCompleted
     ]
@@ -224,7 +226,9 @@ view Model{..} =
         Nothing -> section "New task" Nothing
         Just _ -> section "Edit task" Nothing
       , fmap EditorInputText $ textbox txt
-      , fmap EditorInputPriority $ select viewMaybePriority enum pri
+      , fmap EditorInputPriority
+        . select viewMaybePriority
+        $ enumPosition pri
       , row
         [ hfill
         , button . text "Cancel" $ Just EditorClose

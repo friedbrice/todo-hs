@@ -51,10 +51,3 @@ executable yesod
   hs-source-dirs: src/yesod
   main-is: Main.hs
   build-depends: todo-hs
-
-test-suite test
-  import: common
-  hs-source-dirs: src/test
-  main-is: Main.hs
-  type: exitcode-stdio-1.0
-  build-depends: todo-hs
