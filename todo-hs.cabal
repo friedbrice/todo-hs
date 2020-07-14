@@ -28,6 +28,12 @@ library
   other-modules: Todo.Display, Todo.Enum
   visibility: private
 
+executable brick
+  import: common
+  hs-source-dirs: src/brick
+  main-is: Main.hs
+  build-depends: todo-hs, brick
+
 executable cli
   import: common
   hs-source-dirs: src/cli
