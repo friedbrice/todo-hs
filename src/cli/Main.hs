@@ -1,11 +1,11 @@
 import Todo
 
-import Prelude hiding ((!!), getLine, putStr)
+import Prelude hiding ((!!), getLine, putStr, putStrLn)
 
 import Data.Foldable (fold, foldl')
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
-import Data.Text (Text, pack, unpack)
+import Data.Text (pack, unpack)
 import Data.Text.IO (getLine, putStr)
 import Data.Time (getCurrentTime, getCurrentTimeZone, utcToLocalTime)
 import Data.UUID (UUID)
@@ -30,7 +30,7 @@ instance Update CliApp where
   getTime = CliApp $ getCurrentTime
   newTaskId = CliApp $ TaskId . pack . show <$> randomIO @UUID
 
-newtype Cli b = Cli [Either (IO ()) (IO b, Int -> IO ())]
+newtype Cli b = Cli { unCli :: [Either (IO ()) (IO b, Int -> IO ())] }
   deriving Functor
   deriving (Semigroup, Monoid) via [Either (IO ()) (IO b, Int -> IO ())]
 
@@ -51,7 +51,7 @@ promptRegistry registry =
       | n > 0 = xs !! (n - 1)
       | otherwise = Nothing
   in do
-    n <- readMaybe . unpack <$> getLine
+    n <- readMaybe @Int . unpack <$> getLine
     fromMaybe (promptRegistry registry) $ (registry !!) =<< n
 
 static :: IO () -> Cli b
@@ -60,28 +60,34 @@ static draw = Cli [Left draw]
 active :: IO b -> (Int -> IO ()) -> Cli b
 active onPick draw = Cli [Right (onPick, draw)]
 
-btn :: Text -> Int -> Text
-btn txt n = "[ "<> txt <> " :" <> (pack $ show n) <> " ]"
+activate :: IO b -> Cli a -> Cli b
+activate msg = Cli . fmap toActive1 . unCli
+  where
+  toActive1 (Left draw) = Right (msg, mkBtn (const draw))
+  toActive1 (Right (_, draw)) = Right (msg, mkBtn draw)
+
+  mkBtn draw n = do
+    putStr "[ "
+    draw n :: IO ()
+    putStr " : "
+    putStr . pack . show $ n
+    putStr " ]"
 
 instance View Cli where
-  heading = text . ("# " <>)
+  heading = text . ("\n# " <>) . (<> "\n")
 
-  section = text . ("## " <>)
+  section = text . ("\n## " <>) . (<> "\n")
 
-  text txt Nothing = static $ putStr txt
-  text txt (Just b) = active (pure b) $ putStr . btn txt
+  text txt (Just b) = activate (pure b) (text txt Nothing)
+  text txt Nothing = static (putStr txt)
 
-  time utct mMsg =
-    let
-      timeText = do
-        tz <- getCurrentTimeZone
-        return . pack . show $ utcToLocalTime tz utct
-    in case mMsg of
-      Nothing -> static $ putStr =<< timeText
-      Just b -> active (pure b) $ \n -> do
-        putStr =<< btn <$> timeText <*> pure n
+  time utct (Just b) = activate (pure b) (time utct Nothing)
+  time utct Nothing = static $ do
+    tz <- getCurrentTimeZone
+    putStr . pack . show $ utcToLocalTime tz utct
 
-  textbox txt = active getLine $ putStr . btn txt
+  textbox txt = active getLine $ \n ->
+    putStr $ "[ "<> txt <> " :" <> (pack $ show n) <> " ]"
 
   hfill = static $ putStr "\t"
 
@@ -89,13 +95,41 @@ instance View Cli where
 
   select display (pre, sel, post) = undefined display pre sel post
 
-  switch display (pre, sel, post) = undefined display pre sel post
+  switch display (pre, sel, post) =
+    row $ fmap mkSwitch pre <> [mkSwitch sel] <> fmap mkSwitch post
+    where
+    drawBtn draw n = do
+      putStr "[ "
+      draw n :: IO ()
+      putStr " : "
+      putStr . pack $ show n
+      putStr " ]"
+
+    redraw opt (Left draw) = Right (pure opt, drawBtn $ const draw)
+    redraw opt (Right (_, draw)) = Right (pure opt, drawBtn draw)
+
+    mkSwitch opt =
+      let Cli cs = display opt in Cli $ redraw opt <$> cs
 
   row = fold . intercalate [static (putStr " | ")] . fmap pure
 
   col = fold . intercalate [static (putStr "\n")] . fmap pure
 
-  button = id
+  button (Cli cs) = Cli $ buttonify <$> cs
+    where
+    buttonify (Left draw) =
+      Left (do
+        putStr "[ "
+        draw :: IO ()
+        putStr " ]")
+
+    buttonify (Right (msg, draw)) =
+      Right (msg, \n -> do
+        putStr "[ "
+        draw n :: IO ()
+        putStr " : "
+        putStr . pack $ show n
+        putStr " ]")
 
   modalWindow = id
 
