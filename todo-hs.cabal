@@ -38,6 +38,7 @@ executable cli
   import: common
   hs-source-dirs: src/cli
   main-is: Main.hs
+  other-modules: Framework
   build-depends: todo-hs, random, uuid
 
 executable snap

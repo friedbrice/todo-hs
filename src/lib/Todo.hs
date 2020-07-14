@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module Todo where
 
 import Control.Monad
@@ -87,12 +89,13 @@ data Message
   | EditorInputPriority (Maybe Priority)
   | EditorClose
 
-class Monad u => Update u where
-  getTime :: u UTCTime
-  newTaskId :: u TaskId
+data Update u = Update
+  { getTime :: u UTCTime
+  , newTaskId :: u TaskId
+  }
 
-update :: Update u => Message -> Model -> u Model
-update msg model@Model{..} = case msg of
+update :: Monad u => Update u -> Message -> Model -> u Model
+update Update{..} msg model@Model{..} = case msg of
 
   NewTask description -> do
     taskId <- newTaskId
@@ -146,24 +149,25 @@ update msg model@Model{..} = case msg of
 ----
 -- View
 
-class Functor v => View v where
-  heading :: Text -> Maybe a -> v a
-  section :: Text -> Maybe a -> v a
-  text :: Text -> Maybe a -> v a
-  time :: UTCTime -> Maybe a -> v a
-  textbox :: Text -> v Text
-  hfill :: v a
-  vfill :: v a
-  select :: (a -> v a) -> ([a], a, [a]) -> v a
-  switch :: (a -> v a) -> ([a], a, [a]) -> v a
-  row :: [v a] -> v a
-  col :: [v a] -> v a
-  button :: v a -> v a
-  modalWindow :: v a -> v a
-  table :: [(v a, b -> v a)] -> [b] -> v a
+data View v = View
+  { heading :: forall a. Text -> Maybe a -> v a
+  , section :: forall a. Text -> Maybe a -> v a
+  , text :: forall a. Text -> Maybe a -> v a
+  , time :: forall a. UTCTime -> Maybe a -> v a
+  , textbox :: Text -> v Text
+  , hfill :: forall a. v a
+  , vfill :: forall a. v a
+  , select :: forall a. (a -> v a) -> ([a], a, [a]) -> v a
+  , switch :: forall a. (a -> v a) -> ([a], a, [a]) -> v a
+  , row :: forall a. [v a] -> v a
+  , col :: forall a. [v a] -> v a
+  , button :: forall a. v a -> v a
+  , modalWindow :: forall a. v a -> v a
+  , table :: forall a b. [(v a, b -> v a)] -> [b] -> v a
+  }
 
-view :: View v => Model -> v Message
-view Model{..} =
+view :: Functor v => View v -> Model -> v Message
+view v@View{..} Model{..} =
   col $ editorModal <> [header, tasksTable, footer]
   where
 
@@ -227,7 +231,7 @@ view Model{..} =
         Just _ -> section "Edit task" Nothing
       , fmap EditorInputText $ textbox txt
       , fmap EditorInputPriority
-        . select viewMaybePriority
+        . select (viewMaybePriority v)
         $ enumPosition pri
       , row
         [ hfill
@@ -246,7 +250,7 @@ validTitle txt = guard (not $ Text.null txt) *> Just (Title txt)
 validDescription :: Text -> Maybe Priority -> Maybe Description
 validDescription t p = Description <$> validTitle t <*> p
 
-viewMaybePriority :: View v => Maybe Priority -> v a
-viewMaybePriority mp = case mp of
+viewMaybePriority :: View v -> Maybe Priority -> v a
+viewMaybePriority View{..} mp = case mp of
   Nothing -> text "Select priority" Nothing
   Just p -> text (display p) Nothing
