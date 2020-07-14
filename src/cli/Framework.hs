@@ -162,5 +162,9 @@ button = id
 modalWindow :: Cli a -> Cli a
 modalWindow = id
 
-table :: [(v a, b -> v a)] -> [b] -> v a
-table cols rows = undefined
+table :: [(Cli a, b -> Cli a)] -> [b] -> Cli a
+table cols rows = col $ headRow : dataRows
+  where
+  headRow = row $ fmap fst cols
+  dataRows = fmap (row . dataRow) rows
+  dataRow b = fmap (($ b) . snd) cols
