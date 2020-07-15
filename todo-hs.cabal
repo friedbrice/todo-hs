@@ -9,12 +9,15 @@ common common
   build-depends: base, containers, text, time
   default-language: Haskell2010
   default-extensions:
+      BlockArguments
       DataKinds
       DeriveFunctor
       DerivingVia
       FlexibleInstances
       KindSignatures
+      LambdaCase
       MultiParamTypeClasses
+      NamedFieldPuns
       OverloadedStrings
       RecordWildCards
       TypeApplications

@@ -68,7 +68,7 @@ initialModel :: Model
 initialModel = Model
   { tasks = mempty
   , taskFilter = TaskFilterAll
-  , taskSort = SortPriority
+  , taskSort = SortCreated
   , editor = Nothing
   }
 
@@ -106,13 +106,13 @@ update u@Update{..} msg model@Model{..} = case msg of
 
   UpdateTask taskId desc ->
     update u EditorClose model{ tasks =
-      Map.alter (fmap $ \task -> task{ description = desc }) taskId tasks
+      Map.alter (fmap \task -> task{ description = desc }) taskId tasks
     }
 
   CompleteTask taskId -> do
     cmpl <- Just <$> getTime
     return model{ tasks =
-      Map.alter (fmap $ \task -> task { completed = cmpl }) taskId tasks
+      Map.alter (fmap \task -> task { completed = cmpl }) taskId tasks
     }
 
   DeleteTask taskId ->
@@ -123,7 +123,7 @@ update u@Update{..} msg model@Model{..} = case msg of
 
   EditorOpen taskId ->
     return model{ editor =
-      Just $ case (`Map.lookup` tasks) =<< taskId of
+      Just case (`Map.lookup` tasks) =<< taskId of
         Nothing ->
           ("", Nothing, Nothing)
         Just Task{ description = Description{ title = Title txt, .. } } ->
@@ -150,59 +150,63 @@ update u@Update{..} msg model@Model{..} = case msg of
 -- View
 
 data View v = View
-  { text :: forall a. Text -> Maybe a -> v a
-  , time :: forall a. UTCTime -> Maybe a -> v a
+  { text :: forall msg. Text -> Maybe msg -> v msg
+  , time :: forall msg. UTCTime -> Maybe msg -> v msg
   , textbox :: Text -> v Text
-  , select :: forall a. (a -> v a) -> ([a], a, [a]) -> v a
-  , switch :: forall a. (a -> v a) -> ([a], a, [a]) -> v a
-  , table :: forall a b. [(v a, b -> v a)] -> [b] -> v a
-  , hfill :: forall a. v a
-  , vfill :: forall a. v a
-  , row :: forall a. [v a] -> v a
-  , col :: forall a. [v a] -> v a
-  , strong :: forall a. v a -> v a
-  , button :: forall a. v a -> v a
-  , modalWindow :: forall a. v a -> v a
+  , select :: forall a void. (a -> v void) -> ([a], a, [a]) -> v a
+  , switch :: forall a void. (a -> v void) -> ([a], a, [a]) -> v a
+  , table :: forall a msg. [(v msg, a -> v msg)] -> [a] -> v msg
+  , hfill :: forall void. v void
+  , vfill :: forall void. v void
+  , row :: forall msg. [v msg] -> v msg
+  , col :: forall msg. [v msg] -> v msg
+  , strong :: forall msg. v msg -> v msg
+  , button :: forall msg. v msg -> v msg
+  , modal :: forall msg. v msg -> v msg
   }
 
 view :: Functor v => View v -> Model -> v Message
 view v@View{..} Model{..} =
-  col $ editorModal <> [header, vfill, tasksTable, vfill, footer, vfill]
+  col $ [header, vfill, tasksTable, vfill, footer, vfill] <> editorModal
   where
 
   tasksTable = makeTable . sortTasks . filterTasks $ Map.toList tasks
 
   makeTable = table
     [ ( strong $ text "Title" Nothing
-      , \(taskId, Task{ description = Description{..} }) ->
-        text (display title) (Just . EditorOpen $ Just taskId)
+      , \(taskId, Task{ description = Description{..}, .. }) ->
+        text (display title) case completed of
+          Nothing -> Just . EditorOpen $ Just taskId
+          Just _ -> Nothing
       )
     , ( strong $ text "Priority" (Just $ SetSort SortPriority)
-      , \(taskId, Task{ description = Description{..} }) ->
-        text (display priority) (Just . EditorOpen $ Just taskId)
+      , \(taskId, Task{ description = Description{..}, .. }) ->
+        text (display priority) case completed of
+          Nothing -> Just . EditorOpen $ Just taskId
+          Just _ -> Nothing
       )
-    , ( strong $ text "Created" (Just $ SetSort SortCreated)
+    , ( strong $ text "Created" . Just $ SetSort SortCreated
       , \(_, Task{..}) -> time created Nothing
       )
     , ( strong  $ text "Completed" Nothing
       , \(taskId, Task{..}) -> case completed of
-        Nothing -> text "-" (Just $ CompleteTask taskId)
+        Nothing -> text "-" . Just $ CompleteTask taskId
         Just x -> time x Nothing
       )
     ]
 
   sortTasks = case taskSort of
-    SortCreated -> sortOn $
-      \(_, Task{ description = Description{..}, .. }) ->
+    SortCreated ->
+      sortOn \(_, Task{ description = Description{..}, .. }) ->
         (created, Down priority)
-    SortPriority -> sortOn $
-      \(_, Task{ description = Description{..}, .. }) ->
+    SortPriority ->
+      sortOn \(_, Task{ description = Description{..}, .. }) ->
         (Down priority, created)
 
   filterTasks = case taskFilter of
     TaskFilterAll -> id
-    TaskFilterActive -> filter (\(_, Task{..}) -> null completed)
-    TaskFilterCompleted -> filter (\(_, Task{..}) -> not $ null completed)
+    TaskFilterActive -> filter \(_, Task{..}) -> null completed
+    TaskFilterCompleted -> filter \(_, Task{..}) -> not $ null completed
 
   header = row
     [ hfill
@@ -218,20 +222,20 @@ view v@View{..} Model{..} =
     , hfill
     , fmap SetFilter
       . switch ((`text` Nothing) . display)
-      $ enumPosition taskFilter
+      $ fanEnum taskFilter
     , hfill
     , button . text "Clear completed" $ Just ClearCompleted
     ]
 
-  editorModal = (`foldMap` editor) $ \(txt, pri, taskId) ->
-    pure . modalWindow $ col
+  editorModal = (`foldMap` editor) \(txt, pri, taskId) ->
+    pure . modal $ col
       [ case taskId >>= (`Map.lookup` tasks) of
         Nothing -> strong $ text "New task" Nothing
         Just _ -> strong $ text "Edit task" Nothing
       , fmap EditorInputText $ textbox txt
       , fmap EditorInputPriority
         . select (viewMaybePriority v)
-        $ enumPosition pri
+        $ fanEnum pri
       , row
         [ hfill
         , button . text "Cancel" $ Just EditorClose
