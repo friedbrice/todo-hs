@@ -26,7 +26,6 @@ library
   hs-source-dirs: src/lib
   exposed-modules: Todo
   other-modules: Todo.Display, Todo.Enum
-  visibility: private
 
 executable brick
   import: common
@@ -38,8 +37,14 @@ executable cli
   import: common
   hs-source-dirs: src/cli
   main-is: Main.hs
-  other-modules: Framework
-  build-depends: todo-hs, random, uuid
+  other-modules: Cli.Framework
+  build-depends: todo-hs, ansi-terminal, random, uuid
+
+executable hydra
+  import: common
+  hs-source-dirs: src/hydra
+  main-is: Main.hs
+  build-depends: todo-hs
 
 executable snap
   import: common

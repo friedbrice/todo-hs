@@ -4,27 +4,26 @@ import Data.Text (pack)
 import Data.UUID (UUID)
 
 import Todo
-import qualified Framework
+import qualified Cli.Framework  as Cli
 
 main :: IO ()
-main = Framework.makeCliApp (update updateCliApp) (view viewCli) initialModel
+main = Cli.makeCliApp (update updateCliApp) (view viewCli) initialModel
   where
   updateCliApp = Update{..}
-  getTime = Framework.getTime
-  newTaskId = TaskId . pack . show <$> Framework.random @UUID
+  getTime = Cli.getTime
+  newTaskId = TaskId . pack . show <$> Cli.random @UUID
 
   viewCli = View{..}
-  heading = Framework.heading
-  section = Framework.section
-  text = Framework.text
-  time = Framework.time
-  textbox = Framework.textbox
-  hfill = Framework.hfill
-  vfill = Framework.vfill
-  select = Framework.select
-  switch = Framework.switch
-  row = Framework.row
-  col = Framework.col
-  button = Framework.button
-  modalWindow = Framework.modalWindow
-  table = Framework.table
+  strong = Cli.strong
+  text = Cli.text
+  time = Cli.time
+  textbox = Cli.textbox
+  hfill = Cli.hfill
+  vfill = Cli.vfill
+  select = Cli.select
+  switch = Cli.switch
+  row = Cli.row
+  col = Cli.col
+  button = Cli.button
+  modalWindow = Cli.modalWindow
+  table = Cli.table

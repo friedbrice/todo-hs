@@ -95,17 +95,17 @@ data Update u = Update
   }
 
 update :: Monad u => Update u -> Message -> Model -> u Model
-update Update{..} msg model@Model{..} = case msg of
+update u@Update{..} msg model@Model{..} = case msg of
 
   NewTask description -> do
     taskId <- newTaskId
     created <- getTime
-    return model{ tasks =
+    update u EditorClose model{ tasks =
       Map.alter (const $ Just Task{ completed = Nothing, .. }) taskId tasks
     }
 
   UpdateTask taskId desc ->
-    return model{ tasks =
+    update u EditorClose model{ tasks =
       Map.alter (fmap $ \task -> task{ description = desc }) taskId tasks
     }
 
@@ -150,42 +150,41 @@ update Update{..} msg model@Model{..} = case msg of
 -- View
 
 data View v = View
-  { heading :: forall a. Text -> Maybe a -> v a
-  , section :: forall a. Text -> Maybe a -> v a
-  , text :: forall a. Text -> Maybe a -> v a
+  { text :: forall a. Text -> Maybe a -> v a
   , time :: forall a. UTCTime -> Maybe a -> v a
   , textbox :: Text -> v Text
-  , hfill :: forall a. v a
-  , vfill :: forall a. v a
   , select :: forall a. (a -> v a) -> ([a], a, [a]) -> v a
   , switch :: forall a. (a -> v a) -> ([a], a, [a]) -> v a
+  , table :: forall a b. [(v a, b -> v a)] -> [b] -> v a
+  , hfill :: forall a. v a
+  , vfill :: forall a. v a
   , row :: forall a. [v a] -> v a
   , col :: forall a. [v a] -> v a
+  , strong :: forall a. v a -> v a
   , button :: forall a. v a -> v a
   , modalWindow :: forall a. v a -> v a
-  , table :: forall a b. [(v a, b -> v a)] -> [b] -> v a
   }
 
 view :: Functor v => View v -> Model -> v Message
 view v@View{..} Model{..} =
-  col $ editorModal <> [header, tasksTable, footer]
+  col $ editorModal <> [header, vfill, tasksTable, vfill, footer, vfill]
   where
 
   tasksTable = makeTable . sortTasks . filterTasks $ Map.toList tasks
 
   makeTable = table
-    [ ( section "Priority" (Just $ SetSort SortPriority)
-      , \(taskId, Task{ description = Description{..} }) ->
-        text (display priority) (Just . EditorOpen $ Just taskId)
-      )
-    , ( section "Title" Nothing
+    [ ( strong $ text "Title" Nothing
       , \(taskId, Task{ description = Description{..} }) ->
         text (display title) (Just . EditorOpen $ Just taskId)
       )
-    , ( section "Created" (Just $ SetSort SortCreated)
+    , ( strong $ text "Priority" (Just $ SetSort SortPriority)
+      , \(taskId, Task{ description = Description{..} }) ->
+        text (display priority) (Just . EditorOpen $ Just taskId)
+      )
+    , ( strong $ text "Created" (Just $ SetSort SortCreated)
       , \(_, Task{..}) -> time created Nothing
       )
-    , ( section "Completed" Nothing
+    , ( strong  $ text "Completed" Nothing
       , \(taskId, Task{..}) -> case completed of
         Nothing -> text "-" (Just $ CompleteTask taskId)
         Just x -> time x Nothing
@@ -207,7 +206,7 @@ view v@View{..} Model{..} =
 
   header = row
     [ hfill
-    , heading "TODO" Nothing
+    , strong $ text "TODO" Nothing
     , hfill
     , button . text "New task" . Just $ EditorOpen Nothing
     ]
@@ -227,8 +226,8 @@ view v@View{..} Model{..} =
   editorModal = (`foldMap` editor) $ \(txt, pri, taskId) ->
     pure . modalWindow $ col
       [ case taskId >>= (`Map.lookup` tasks) of
-        Nothing -> section "New task" Nothing
-        Just _ -> section "Edit task" Nothing
+        Nothing -> strong $ text "New task" Nothing
+        Just _ -> strong $ text "Edit task" Nothing
       , fmap EditorInputText $ textbox txt
       , fmap EditorInputPriority
         . select (viewMaybePriority v)

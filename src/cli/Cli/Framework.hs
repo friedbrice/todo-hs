@@ -1,4 +1,4 @@
-module Framework where
+module Cli.Framework where
 
 import Prelude hiding ((!!), getLine, putStr)
 
@@ -8,15 +8,18 @@ import Data.List (intercalate)
 import Data.Text (Text, pack, unpack)
 import Data.Text.IO (getLine, putStr)
 import Data.Time (UTCTime, getCurrentTime, getCurrentTimeZone, utcToLocalTime)
+import System.Console.ANSI (clearScreen)
+import System.IO (hFlush, stdout)
 import System.Random (Random, randomIO)
 import Text.Read (readMaybe)
 
 makeCliApp :: (b -> a -> CliApp a) -> (a -> Cli b) -> a -> IO ()
 makeCliApp update view model = do
+  clearScreen
   let (registry, draw) = render (view model)
-  draw
-  b <- promptRegistry registry
-  newModel <- runCliApp $ update b model
+  draw *> hFlush stdout
+  msg <- promptRegistry registry <* hFlush stdout
+  newModel <- runCliApp (update msg model) <* hFlush stdout
   makeCliApp update view newModel
 
 newtype CliApp a = CliApp { runCliApp :: IO a }
@@ -28,9 +31,15 @@ getTime = CliApp $ getCurrentTime
 random :: Random a => CliApp a
 random = CliApp $ randomIO
 
-newtype Cli b = Cli { unCli :: [Either (IO ()) (IO b, Int -> IO ())] }
+type Element b = Either (IO ()) (IO b, Int -> IO ())
+
+-- TODO: I should be distinguishing between inline and block elements
+newtype Cli b = Cli [Element b]
   deriving Functor
   deriving (Semigroup, Monoid) via [Either (IO ()) (IO b, Int -> IO ())]
+
+visit :: (Element a -> Element b) -> Cli a -> Cli b
+visit f (Cli cs) = Cli (fmap f cs)
 
 render :: Cli b -> ([IO b], IO ())
 render = renderWith 0 []
@@ -70,7 +79,7 @@ active :: IO b -> (Int -> IO ()) -> Cli b
 active onPick draw = Cli [Right (onPick, draw)]
 
 activate :: IO b -> Cli a -> Cli b
-activate msg = Cli . fmap toActive1 . unCli
+activate msg = visit toActive1
   where
   toActive1 (Left draw) = Right (msg, mkBtn (const draw))
   toActive1 (Right (_, draw)) = Right (msg, mkBtn draw)
@@ -109,27 +118,35 @@ vfill :: Cli b
 vfill = static $ putStr "\n\n"
 
 select :: (a -> Cli a) -> ([a], a, [a]) -> Cli a
-select display (pre, sel, post) = active msg draw
+select display (pre, sel, post) = active msg (drawBtn drawSel)
   where
-  msg = do
-    let
-      pre' = display <$> pre
-      sel' = display sel
-      post' = display <$> post
-      (reg, draw') = render . col $ pre' <> [sel'] <> post'
-    draw'
-    promptRegistry reg
-
-  draw n = do
+  drawBtn draw n = do
     putStr "[ "
-    renderStatic n $ display sel
+    draw n :: IO ()
     putStr " : "
     putStr . pack $ show n
     putStr " ]"
 
+  drawSel = (`renderStatic` display sel)
+
+  redraw opt (Left draw) =
+    Right (pure opt, drawBtn $ const draw)
+  redraw opt (Right (_, draw)) =
+    Right (pure opt, drawBtn draw)
+
+  mkSwitch opt = visit (redraw opt) $ display opt
+
+  pre' = mkSwitch <$> pre
+  sel' = mkSwitch sel
+  post' = mkSwitch <$> post
+
+  msg = do
+    let (registry, draw) = render . col $ pre' <> [sel'] <> post'
+    draw *> hFlush stdout
+    promptRegistry registry <* hFlush stdout
+
 switch :: (a -> Cli a) -> ([a], a, [a]) -> Cli a
-switch display (pre, sel, post) =
-  row $ pre' <> [sel'] <> post'
+switch display (pre, sel, post) = row $ pre' <> [sel'] <> post'
   where
   drawBtn selected draw n = do
     putStr $ if selected then "[* " else "[ "
@@ -143,8 +160,7 @@ switch display (pre, sel, post) =
   redraw selected opt (Right (_, draw)) =
     Right (pure opt, drawBtn selected draw)
 
-  mkSwitch selected opt =
-    let Cli cs = display opt in Cli $ redraw selected opt <$> cs
+  mkSwitch selected opt = visit (redraw selected opt) $ display opt
 
   pre' = mkSwitch False <$> pre
   sel' = mkSwitch True sel
@@ -168,3 +184,13 @@ table cols rows = col $ headRow : dataRows
   headRow = row $ fmap fst cols
   dataRows = fmap (row . dataRow) rows
   dataRow b = fmap (($ b) . snd) cols
+
+strong :: Cli a -> Cli a
+strong (Cli cs) =
+  Cli
+  $ fmap (\x -> case x of
+    Left draw ->
+      Left $ putStr "**" *> draw *> putStr "**"
+    Right (msg, draw) ->
+      Right (msg, \n -> putStr "**" *> draw n *> putStr "**"))
+  $ cs
